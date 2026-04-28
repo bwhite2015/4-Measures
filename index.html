@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Choir Practice Staff + Keyboard MVP</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #cbd5e1;
+      --accent: #2563eb;
+      --danger: #dc2626;
+      --white-key: #fff;
+      --black-key: #111827;
+      --note: #111827;
+      --ghost: rgba(37, 99, 235, 0.45);
+      --slot-hover: rgba(37, 99, 235, 0.12);
+      --slot-active: rgba(37, 99, 235, 0.25);
+      --measure-line: #64748b;
+      --success: #166534;
+      --warning: #92400e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    .app {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    h1 { margin: 0; font-size: 1.6rem; }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 6px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--accent);
+      background: #f8fbff;
+    }
+
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+    .reset-btn { color: var(--danger); }
+
+    .hidden-file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .play-btn.playing {
+      color: var(--success);
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+
+    .speed-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .speed-control span,
+    .speed-control strong { white-space: nowrap; }
+    .speed-control input { width: 150px; cursor: pointer; }
+
+    .statusbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .pill {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .pill strong { color: var(--ink); }
+    .pill.warning strong { color: var(--warning); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+      overflow: visible;
+    }
+
+    .staff-wrap { position: relative; overflow-x: auto; }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 1100px;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .legend, .footnote {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 10px;
+      line-height: 1.45;
+    }
+
+    .slot-hit { fill: transparent; cursor: pointer; }
+    .slot-hit.hovered { fill: var(--slot-hover); }
+    .slot-hit.active { fill: var(--slot-active); }
+    .slot-hit.next-slot { fill: rgba(22, 101, 52, 0.08); }
+    .slot-hit.occupied { cursor: default; }
+
+    .ghost-note { fill: var(--ghost); stroke: none; pointer-events: none; }
+    .ledger-line { stroke: var(--ink); stroke-width: 2; }
+    .staff-label { font-size: 13px; fill: var(--muted); pointer-events: none; }
+    .measure-num { font-size: 12px; fill: var(--muted); }
+
+    .beat-guide {
+      stroke: #cbd5e1;
+      stroke-width: 1;
+      stroke-dasharray: 4 5;
+    }
+
+    .playhead { stroke: #16a34a; stroke-width: 3; opacity: 0.85; }
+
+    .note-hit {
+      fill: transparent;
+      cursor: ns-resize;
+      pointer-events: all;
+    }
+
+    .placed-note:hover .note-hit { fill: rgba(37, 99, 235, 0.08); }
+    .placed-note.dragging .note-hit { fill: rgba(37, 99, 235, 0.16); }
+
+    .keyboard-wrap { overflow-x: auto; padding-bottom: 8px; }
+
+    .keyboard {
+      position: relative;
+      height: 240px;
+      min-width: 1200px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #dbe4ef;
+      padding: 14px;
+    }
+
+    .keys { position: relative; height: 100%; user-select: none; }
+
+    .white-key {
+      position: absolute;
+      top: 0;
+      width: 48px;
+      height: 210px;
+      background: var(--white-key);
+      border: 1px solid #94a3b8;
+      border-radius: 0 0 10px 10px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 10px;
+      font-size: 12px;
+      cursor: pointer;
+      z-index: 1;
+    }
+
+    .white-key:hover,
+    .white-key.highlight {
+      background: #eff6ff;
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 2px rgba(37,99,235,0.15);
+    }
+
+    .black-key {
+      position: absolute;
+      top: 0;
+      width: 30px;
+      height: 130px;
+      background: var(--black-key);
+      border: 1px solid #000;
+      border-radius: 0 0 8px 8px;
+      color: white;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0 2px 8px;
+      font-size: 10px;
+      text-align: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .black-key:hover,
+    .black-key.highlight {
+      outline: 2px solid #60a5fa;
+      background: #1e3a8a;
+    }
+
+    .menu {
+      position: fixed;
+      z-index: 9999;
+      min-width: 170px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+      padding: 6px;
+      display: none;
+    }
+
+    .menu button {
+      display: block;
+      width: 100%;
+      border: none;
+      background: transparent;
+      text-align: left;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .menu button:hover:not(:disabled) { background: #eff6ff; }
+    .menu .delete-option { color: var(--danger); }
+
+    @media (max-width: 720px) {
+      h1 { font-size: 1.3rem; }
+      .white-key { width: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div>
+        <h1>Choir Practice Staff + Keyboard</h1>
+        <div class="subtitle">NOTE: To save your music, click the "Download Save File" button below. This will provide a JSON file with the data needed for later use. To load a save, click the "Upload Save File" button and select the previously saved JSON file from your desktop.</div>
+      </div>
+      <div class="controls">
+        <label class="speed-control" for="bpmSlider">
+          <span>Speed</span>
+          <input id="bpmSlider" type="range" min="40" max="200" step="1" value="86" />
+          <strong><span id="bpmValue">86</span> BPM</strong>
+        </label>
+        <button id="downloadSaveBtn">Download Save File</button>
+        <button id="uploadSaveBtn" title="Upload a previously downloaded save file">Upload Save File</button>
+        <input id="saveFileInput" class="hidden-file-input" type="file" accept="application/json,.json" />
+        <button id="playBtn" class="play-btn">Play Staff</button>
+        <button id="resetBtn" class="reset-btn">Reset Staff</button>
+      </div>
+    </div>
+
+    <div class="statusbar">
+      <div class="pill"><strong id="measureStatus">Measure 1</strong> active</div>
+      <div class="pill"><strong id="beatStatus">4.00</strong> beats until next barline</div>
+      <div class="pill"><strong id="timelineStatus">Beat 1.00</strong> next note start</div>
+      <div class="pill warning"><strong id="placementStatus">Ready</strong></div>
+    </div>
+
+    <div class="layout">
+      <div class="panel">
+        <div class="staff-wrap">
+          <svg id="staffSvg" viewBox="0 0 1200 420" aria-label="Music staff"></svg>
+        </div>
+        <div class="legend">
+          Click on the staff to add a note at that position. Right Click to add different note types. Click and drag up and down to change the position of a note. Right click on an existing note to delete. 
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="keyboard-wrap">
+          <div class="keyboard">
+            <div class="keys" id="keyboard"></div>
+          </div>
+        </div>
+        <div class="footnote">
+          Keyboard range: C2 to C6. Black keys are labeled with sharps and sound accurately; visually they appear on the nearest natural staff position with a sharp symbol. Click and hold a keyboard key to hear it continuously; release to add it to the staff.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="contextMenu" class="menu"></div>
+
+  <script>
+    const svg = document.getElementById('staffSvg');
+    const keyboardEl = document.getElementById('keyboard');
+    const resetBtn = document.getElementById('resetBtn');
+    const downloadSaveBtn = document.getElementById('downloadSaveBtn');
+    const uploadSaveBtn = document.getElementById('uploadSaveBtn');
+    const saveFileInput = document.getElementById('saveFileInput');
+    const playBtn = document.getElementById('playBtn');
+    const contextMenu = document.getElementById('contextMenu');
+    const measureStatusEl = document.getElementById('measureStatus');
+    const beatStatusEl = document.getElementById('beatStatus');
+    const placementStatusEl = document.getElementById('placementStatus');
+    const bpmSlider = document.getElementById('bpmSlider');
+    const bpmValueEl = document.getElementById('bpmValue');
+    const timelineStatusEl = document.getElementById('timelineStatus');
+
+    const NS = 'http://www.w3.org/2000/svg';
+
+    const STAFF = {
+      width: 1200,
+      height: 420,
+      left: 110,
+      right: 1130,
+      trebleTop: 90,
+      bassTop: 186,
+      lineGap: 16,
+      linesPerStaff: 5,
+      measures: 4,
+      beatsPerMeasure: 4,
+      totalBeats: 16,
+      noteAreaLeft: 190,
+      noteAreaRight: 1110,
+    };
+
+    const SAVE_FILE_VERSION = 1;
+    const SAVE_FILE_APP = 'choir-practice-staff-keyboard';
+
+    const NOTE_TYPES = [
+      { id: 'whole', label: 'Whole Note', beats: 4 },
+      { id: 'half', label: 'Half Note', beats: 2 },
+      { id: 'quarter', label: 'Quarter Note', beats: 1 },
+      { id: 'eighth', label: 'Eighth Note', beats: 0.5 },
+      { id: 'sixteenth', label: 'Sixteenth Note', beats: 0.25 },
+    ];
+
+    const NOTE_TYPE_MAP = Object.fromEntries(NOTE_TYPES.map(type => [type.id, type]));
+    const NATURAL_SEQUENCE = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    const NATURAL_PITCHES = [];
+
+    for (let octave = 2; octave <= 6; octave++) {
+      for (const note of NATURAL_SEQUENCE) {
+        if (octave === 6 && note !== 'C') continue;
+        NATURAL_PITCHES.push(`${note}${octave}`);
+      }
+    }
+
+    const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const naturalIndexMap = Object.fromEntries(NATURAL_PITCHES.map((p, i) => [p, i]));
+    const bassBottomLinePitch = 'G2';
+    const bassBottomIndex = naturalIndexMap[bassBottomLinePitch];
+    let noteIdCounter = 1;
+
+    const slotPitchTargets = [];
+    const notesPlaced = [];
+    let hoverPitch = null;
+    let activePitch = null;
+    let audioCtx = null;
+    let isPlaying = false;
+    let playbackTimeouts = [];
+    let draggingNoteId = null;
+    let hasDragged = false;
+    let sustainedTone = null;
+    let keyboardPointerId = null;
+    let keyboardPressedPitch = null;
+    let suppressNextClick = false;
+
+    function midiFromPitch(pitch) {
+      const match = pitch.match(/^([A-G])(#?)(\d)$/);
+      if (!match) return null;
+      const [, letter, sharp, octaveStr] = match;
+      return (Number(octaveStr) + 1) * 12 + CHROMATIC.indexOf(letter + sharp);
+    }
+
+    function pitchFromMidi(midi) {
+      const name = CHROMATIC[midi % 12];
+      const octave = Math.floor(midi / 12) - 1;
+      return `${name}${octave}`;
+    }
+
+    function nearestNaturalPitch(pitch) {
+      if (!pitch.includes('#')) return pitch;
+      const midi = midiFromPitch(pitch);
+      const down = pitchFromMidi(midi - 1);
+      if (!down.includes('#')) return down;
+      return pitchFromMidi(midi + 1);
+    }
+
+    function stepIndexForPitch(pitch) {
+      const natural = nearestNaturalPitch(pitch);
+      return naturalIndexMap[natural] - bassBottomIndex;
+    }
+
+    function yForPitch(pitch) {
+      const step = stepIndexForPitch(pitch);
+      const bassBottomY = STAFF.bassTop + STAFF.lineGap * 4;
+      return bassBottomY - step * (STAFF.lineGap / 2);
+    }
+
+    function pitchFromY(y) {
+      const bassBottomY = STAFF.bassTop + STAFF.lineGap * 4;
+      const step = Math.round((bassBottomY - y) / (STAFF.lineGap / 2));
+      const index = Math.max(0, Math.min(NATURAL_PITCHES.length - 1, bassBottomIndex + step));
+      return NATURAL_PITCHES[index];
+    }
+
+    function getLedgerYs(pitch) {
+      const y = yForPitch(pitch);
+      const trebleTop = STAFF.trebleTop;
+      const trebleBottom = STAFF.trebleTop + STAFF.lineGap * 4;
+      const bassTop = STAFF.bassTop;
+      const bassBottom = STAFF.bassTop + STAFF.lineGap * 4;
+      const lines = [];
+
+      if (y < trebleTop) {
+        for (let ly = trebleTop - STAFF.lineGap; ly >= y - 1; ly -= STAFF.lineGap) lines.push(ly);
+      } else if (y > bassBottom) {
+        for (let ly = bassBottom + STAFF.lineGap; ly <= y + 1; ly += STAFF.lineGap) lines.push(ly);
+      } else if (y > trebleBottom && y < bassTop) {
+        lines.push(171);
+      }
+
+      return lines;
+    }
+
+    function createSvgEl(tag, attrs = {}) {
+      const el = document.createElementNS(NS, tag);
+      for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+      return el;
+    }
+
+    function clearSvg() {
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+    }
+
+    function roundBeat(value) {
+      return Math.round(value * 100) / 100;
+    }
+
+    function beatToX(beat) {
+      const noteWidth = STAFF.noteAreaRight - STAFF.noteAreaLeft;
+      return STAFF.noteAreaLeft + (beat / STAFF.totalBeats) * noteWidth;
+    }
+
+    function xToBeat(x) {
+      const noteWidth = STAFF.noteAreaRight - STAFF.noteAreaLeft;
+      const raw = ((x - STAFF.noteAreaLeft) / noteWidth) * STAFF.totalBeats;
+      return Math.max(0, Math.min(STAFF.totalBeats, Math.round(raw * 4) / 4));
+    }
+
+    function getBeatColumnStart(startBeat) {
+      return Math.max(0, Math.min(STAFF.totalBeats - 0.25, Math.floor(startBeat)));
+    }
+
+    function getSvgPoint(evt) {
+      const pt = svg.createSVGPoint();
+      pt.x = evt.clientX;
+      pt.y = evt.clientY;
+      return pt.matrixTransform(svg.getScreenCTM().inverse());
+    }
+
+    function getCurrentBeatPosition() {
+      if (!notesPlaced.length) return 0;
+      return roundBeat(Math.max(...notesPlaced.map(note => note.startBeat + note.beats)));
+    }
+
+    function getNextPlacementInfo() {
+      const beatPos = Math.min(getCurrentBeatPosition(), STAFF.totalBeats);
+      const measureIndex = Math.min(Math.floor(beatPos / STAFF.beatsPerMeasure), STAFF.measures - 1);
+      const beatInMeasure = roundBeat(beatPos - measureIndex * STAFF.beatsPerMeasure);
+      return { beatPos, measureIndex, beatInMeasure, displayBeatInMeasure: roundBeat(beatInMeasure + 1) };
+    }
+
+    function getRemainingBeatsInCurrentMeasure() {
+      const used = getNextPlacementInfo().beatInMeasure;
+      return roundBeat((STAFF.beatsPerMeasure - used) || STAFF.beatsPerMeasure);
+    }
+
+    function rangesOverlap(startA, endA, startB, endB) {
+      return startA < endB && startB < endA;
+    }
+
+    function findNoteAtBeat(beat) {
+      return notesPlaced.find(note => rangesOverlap(note.startBeat, note.startBeat + note.beats, beat, beat + 0.25));
+    }
+
+    function isRangeFree(startBeat, beats, ignoreId = null) {
+      const endBeat = roundBeat(startBeat + beats);
+      if (startBeat < 0 || endBeat > STAFF.totalBeats) return false;
+      return !notesPlaced.some(note => note.id !== ignoreId && rangesOverlap(startBeat, endBeat, note.startBeat, note.startBeat + note.beats));
+    }
+
+    function canPlaceNote(typeId, startBeat = getCurrentBeatPosition(), ignoreId = null) {
+      const type = NOTE_TYPE_MAP[typeId];
+      if (startBeat >= STAFF.totalBeats) return { ok: false, reason: 'Staff is full' };
+      if (!isRangeFree(startBeat, type.beats, ignoreId)) return { ok: false, reason: 'That beat range is occupied' };
+      const endBeat = roundBeat(startBeat + type.beats);
+      const crossesBarline = Math.floor(startBeat / STAFF.beatsPerMeasure) !== Math.floor((endBeat - 0.0001) / STAFF.beatsPerMeasure);
+      return { ok: true, reason: crossesBarline ? `${type.label} crosses into next measure` : `${type.label} fits` };
+    }
+
+    function updateNoteTimingMetadata(note) {
+      note.endBeat = roundBeat(note.startBeat + note.beats);
+      note.measure = Math.floor(note.startBeat / STAFF.beatsPerMeasure) + 1;
+      note.endMeasure = Math.floor((note.endBeat - 0.0001) / STAFF.beatsPerMeasure) + 1;
+      note.crossesBarline = note.measure !== note.endMeasure;
+    }
+
+    function updateStatus(message = 'Ready') {
+      const info = getNextPlacementInfo();
+      const displayMeasure = Math.min(info.measureIndex + 1, STAFF.measures);
+      const remaining = info.beatPos >= STAFF.totalBeats ? 0 : getRemainingBeatsInCurrentMeasure();
+      measureStatusEl.textContent = `Measure ${displayMeasure}`;
+      beatStatusEl.textContent = remaining.toFixed(2);
+      timelineStatusEl.textContent = `Beat ${info.displayBeatInMeasure.toFixed(2)}`;
+      placementStatusEl.textContent = message;
+      playBtn.disabled = notesPlaced.length === 0;
+      uploadSaveBtn.disabled = notesPlaced.length > 0;
+      uploadSaveBtn.title = notesPlaced.length > 0 ? 'Reset staff to use this feature' : 'Upload a previously downloaded save file';
+      bpmValueEl.textContent = bpmSlider.value;
+    }
+
+    function drawStaticStaff() {
+      clearSvg();
+      slotPitchTargets.length = 0;
+
+      svg.appendChild(createSvgEl('rect', { x: 0, y: 0, width: STAFF.width, height: STAFF.height, fill: '#ffffff' }));
+
+      for (let i = 0; i < STAFF.linesPerStaff; i++) {
+        const yTreble = STAFF.trebleTop + i * STAFF.lineGap;
+        const yBass = STAFF.bassTop + i * STAFF.lineGap;
+        svg.appendChild(createSvgEl('line', { x1: STAFF.left, y1: yTreble, x2: STAFF.right, y2: yTreble, stroke: '#334155', 'stroke-width': 2 }));
+        svg.appendChild(createSvgEl('line', { x1: STAFF.left, y1: yBass, x2: STAFF.right, y2: yBass, stroke: '#334155', 'stroke-width': 2 }));
+      }
+
+      const noteWidth = STAFF.noteAreaRight - STAFF.noteAreaLeft;
+      const measureWidth = noteWidth / STAFF.measures;
+      for (let i = 0; i <= STAFF.measures; i++) {
+        const x = STAFF.noteAreaLeft + i * measureWidth;
+        svg.appendChild(createSvgEl('line', {
+          x1: x,
+          y1: STAFF.trebleTop,
+          x2: x,
+          y2: STAFF.bassTop + STAFF.lineGap * 4,
+          stroke: 'var(--measure-line)',
+          'stroke-width': i === 0 || i === STAFF.measures ? 2.5 : 2,
+        }));
+        if (i < STAFF.measures) {
+          svg.appendChild(createSvgEl('text', { x: x + 10, y: STAFF.trebleTop - 18, class: 'measure-num' })).textContent = String(i + 1);
+        }
+      }
+
+      for (let beat = 1; beat < STAFF.totalBeats; beat++) {
+        if (beat % STAFF.beatsPerMeasure === 0) continue;
+        const x = beatToX(beat);
+        svg.appendChild(createSvgEl('line', { x1: x, y1: STAFF.trebleTop, x2: x, y2: STAFF.bassTop + STAFF.lineGap * 4, class: 'beat-guide' }));
+      }
+
+      svg.appendChild(createSvgEl('path', {
+        d: 'M 74 90 C 54 90, 54 117, 74 122 C 90 126, 90 150, 74 154 C 90 160, 90 184, 74 190 C 54 196, 54 224, 74 250',
+        fill: 'none',
+        stroke: '#0f172a',
+        'stroke-width': 4,
+        'stroke-linecap': 'round'
+      }));
+
+      const treble = createSvgEl('text', { x: 95, y: 143, 'font-size': 72, fill: '#0f172a' });
+      treble.textContent = '𝄞';
+      svg.appendChild(treble);
+
+      const bass = createSvgEl('text', { x: 98, y: 246, 'font-size': 62, fill: '#0f172a' });
+      bass.textContent = '𝄢';
+      svg.appendChild(bass);
+
+      svg.appendChild(createSvgEl('text', { x: 18, y: 122, class: 'staff-label' })).textContent = 'Treble';
+      svg.appendChild(createSvgEl('text', { x: 30, y: 267, class: 'staff-label' })).textContent = 'Bass';
+
+      createPitchTargets();
+      drawPlacedNotes();
+      drawGhostNote();
+      drawPlayhead();
+      updateStatus();
+    }
+
+    function createPitchTargets() {
+      const subdivisions = STAFF.totalBeats * 4;
+      const sliceWidth = (STAFF.noteAreaRight - STAFF.noteAreaLeft) / subdivisions;
+      const nextSubdivision = Math.round(getNextPlacementInfo().beatPos * 4);
+
+      NATURAL_PITCHES.forEach((pitch) => {
+        const y = yForPitch(pitch);
+        for (let slotIndex = 0; slotIndex < subdivisions; slotIndex++) {
+          const startBeat = slotIndex / 4;
+          const beatColumnStart = getBeatColumnStart(startBeat);
+          const isOccupied = !!findNoteAtBeat(beatColumnStart);
+          const x = STAFF.noteAreaLeft + slotIndex * sliceWidth;
+          const rect = createSvgEl('rect', {
+            x,
+            y: y - 10,
+            width: sliceWidth,
+            height: 20,
+            class: 'slot-hit',
+            'data-pitch': pitch,
+            'data-start-beat': String(startBeat),
+          });
+
+          if (slotIndex === nextSubdivision) rect.classList.add('next-slot');
+          if (isOccupied) rect.classList.add('occupied');
+
+          rect.addEventListener('mouseenter', () => setHoverPitch(pitch, startBeat));
+          rect.addEventListener('mouseleave', () => setHoverPitch(null));
+          rect.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (findNoteAtBeat(beatColumnStart)) {
+              updateStatus('That beat is occupied. Drag or right click the existing note.');
+              return;
+            }
+            addNoteAtBeat(pitch, 'quarter', beatColumnStart);
+          });
+          rect.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (findNoteAtBeat(beatColumnStart)) return;
+            openAddContextMenu(e.clientX, e.clientY, pitch, beatColumnStart);
+          });
+
+          slotPitchTargets.push(rect);
+          svg.appendChild(rect);
+        }
+      });
+    }
+
+    function setHoverPitch(pitch) {
+      hoverPitch = pitch;
+      refreshHighlights();
+      drawStaticOverlay();
+    }
+
+    function setActivePitch(pitch) {
+      activePitch = pitch;
+      refreshHighlights();
+      drawStaticOverlay();
+    }
+
+    function refreshHighlights() {
+      const currentPitch = hoverPitch || activePitch;
+      slotPitchTargets.forEach((rect) => {
+        const rectPitch = rect.getAttribute('data-pitch');
+        rect.classList.toggle('hovered', !!currentPitch && rectPitch === nearestNaturalPitch(currentPitch));
+        rect.classList.toggle('active', !!activePitch && rectPitch === nearestNaturalPitch(activePitch));
+      });
+
+      document.querySelectorAll('.white-key, .black-key').forEach((keyEl) => {
+        const keyPitch = keyEl.getAttribute('data-pitch');
+        keyEl.classList.toggle('highlight', !!currentPitch && nearestNaturalPitch(keyPitch) === nearestNaturalPitch(currentPitch));
+      });
+    }
+
+    function drawStaticOverlay() {
+      document.querySelectorAll('.ghost-layer').forEach(el => el.remove());
+      document.querySelectorAll('.note-layer').forEach(el => el.remove());
+      document.querySelectorAll('.playhead-layer').forEach(el => el.remove());
+      drawGhostNote();
+      drawPlacedNotes();
+      drawPlayhead();
+    }
+
+    function drawGhostNote() {
+      const pitch = hoverPitch || activePitch;
+      if (!pitch) return;
+      const x = beatToX(getCurrentBeatPosition()) + 14;
+      const y = yForPitch(pitch);
+      const group = createSvgEl('g', { class: 'ghost-layer' });
+
+      getLedgerYs(pitch).forEach((ly) => {
+        group.appendChild(createSvgEl('line', { x1: x - 14, x2: x + 14, y1: ly, y2: ly, class: 'ledger-line', stroke: 'rgba(37,99,235,0.45)' }));
+      });
+
+      group.appendChild(createSvgEl('ellipse', { cx: x, cy: y, rx: 11, ry: 8, class: 'ghost-note' }));
+
+      if (pitch.includes('#')) {
+        const txt = createSvgEl('text', { x: x - 24, y: y + 5, 'font-size': 20, fill: 'rgba(37,99,235,0.65)', 'font-weight': 'bold' });
+        txt.textContent = '♯';
+        group.appendChild(txt);
+      }
+
+      svg.appendChild(group);
+    }
+
+    function drawPlacedNotes() {
+      document.querySelectorAll('.note-layer').forEach(el => el.remove());
+      const group = createSvgEl('g', { class: 'note-layer' });
+
+      notesPlaced.sort((a, b) => a.startBeat - b.startBeat).forEach((note) => {
+        const startX = beatToX(note.startBeat);
+        const endX = beatToX(note.startBeat + note.beats);
+        const x = startX + (endX - startX) / 2;
+        const y = yForPitch(note.pitch);
+        const filled = note.type !== 'whole' && note.type !== 'half';
+        const needsStem = note.type !== 'whole';
+        const flags = note.type === 'eighth' ? 1 : note.type === 'sixteenth' ? 2 : 0;
+
+        const noteGroup = createSvgEl('g', { class: `placed-note${draggingNoteId === note.id ? ' dragging' : ''}`, 'data-note-id': String(note.id) });
+
+        noteGroup.appendChild(createSvgEl('rect', {
+          x: Math.min(startX, endX) + 2,
+          y: y - 24,
+          width: Math.max(28, endX - startX - 4),
+          height: 48,
+          class: 'note-hit'
+        }));
+
+        if (note.beats > 1) {
+          noteGroup.appendChild(createSvgEl('line', { x1: startX + 6, y1: y, x2: endX - 6, y2: y, stroke: 'rgba(15, 23, 42, 0.25)', 'stroke-width': 3, 'stroke-linecap': 'round' }));
+        }
+
+        getLedgerYs(note.pitch).forEach((ly) => {
+          noteGroup.appendChild(createSvgEl('line', { x1: x - 15, x2: x + 15, y1: ly, y2: ly, class: 'ledger-line' }));
+        });
+
+        if (note.pitch.includes('#')) {
+          const accidental = createSvgEl('text', { x: x - 24, y: y + 5, 'font-size': 22, fill: '#111827', 'font-weight': 'bold', 'pointer-events': 'none' });
+          accidental.textContent = '♯';
+          noteGroup.appendChild(accidental);
+        }
+
+        noteGroup.appendChild(createSvgEl('ellipse', { cx: x, cy: y, rx: 11, ry: 8, fill: filled ? 'var(--note)' : '#fff', stroke: 'var(--note)', 'stroke-width': 2, transform: `rotate(-20 ${x} ${y})`, 'pointer-events': 'none' }));
+
+        if (needsStem) {
+          const stemUp = y > 171;
+          const stemX = stemUp ? x + 9 : x - 9;
+          const stemY2 = stemUp ? y - 42 : y + 42;
+          noteGroup.appendChild(createSvgEl('line', { x1: stemX, y1: y, x2: stemX, y2: stemY2, stroke: 'var(--note)', 'stroke-width': 2, 'pointer-events': 'none' }));
+
+          if (flags > 0) {
+            for (let i = 0; i < flags; i++) {
+              const yOffset = stemUp ? i * 9 : -i * 9;
+              const path = stemUp
+                ? `M ${stemX} ${stemY2 + yOffset} C ${stemX + 10} ${stemY2 + 4 + yOffset}, ${stemX + 14} ${stemY2 + 14 + yOffset}, ${stemX + 2} ${stemY2 + 22 + yOffset}`
+                : `M ${stemX} ${stemY2 + yOffset} C ${stemX - 10} ${stemY2 - 4 + yOffset}, ${stemX - 14} ${stemY2 - 14 + yOffset}, ${stemX - 2} ${stemY2 - 22 + yOffset}`;
+              noteGroup.appendChild(createSvgEl('path', { d: path, fill: 'none', stroke: 'var(--note)', 'stroke-width': 2, 'stroke-linecap': 'round', 'pointer-events': 'none' }));
+            }
+          }
+        }
+
+        noteGroup.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          draggingNoteId = note.id;
+          hasDragged = false;
+          setActivePitch(note.pitch);
+          svg.setPointerCapture(e.pointerId);
+          updateStatus(`Drag to change ${note.pitch}`);
+        });
+
+        noteGroup.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openNoteContextMenu(e.clientX, e.clientY, note.id);
+        });
+
+        group.appendChild(noteGroup);
+      });
+
+      svg.appendChild(group);
+    }
+
+    function drawPlayhead(currentBeat = null) {
+      document.querySelectorAll('.playhead-layer').forEach(el => el.remove());
+      const group = createSvgEl('g', { class: 'playhead-layer' });
+      const x = beatToX(currentBeat == null ? getCurrentBeatPosition() : currentBeat);
+      group.appendChild(createSvgEl('line', { x1: x, y1: STAFF.trebleTop - 18, x2: x, y2: STAFF.bassTop + STAFF.lineGap * 4 + 18, class: 'playhead' }));
+      svg.appendChild(group);
+    }
+
+    function ensureAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function frequencyFromPitch(pitch) {
+      const midi = midiFromPitch(pitch);
+      return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    function playTone(pitch, duration = 0.35, when = 0) {
+      ensureAudio();
+      const startTime = audioCtx.currentTime + when;
+      const endTime = startTime + duration;
+      const osc = audioCtx.createOscillator();
+      const overtone = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const overtoneGain = audioCtx.createGain();
+      const freq = frequencyFromPitch(pitch);
+
+      osc.type = 'triangle';
+      overtone.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startTime);
+      overtone.frequency.setValueAtTime(freq * 2, startTime);
+
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.22, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+      overtoneGain.gain.setValueAtTime(0.045, startTime);
+      overtoneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+      osc.connect(gain);
+      overtone.connect(overtoneGain);
+      gain.connect(audioCtx.destination);
+      overtoneGain.connect(audioCtx.destination);
+      osc.start(startTime);
+      overtone.start(startTime);
+      osc.stop(endTime + 0.02);
+      overtone.stop(endTime + 0.02);
+    }
+
+    function startSustainedTone(pitch) {
+      stopSustainedTone();
+      ensureAudio();
+      const osc = audioCtx.createOscillator();
+      const overtone = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const overtoneGain = audioCtx.createGain();
+      const freq = frequencyFromPitch(pitch);
+
+      osc.type = 'triangle';
+      overtone.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      overtone.frequency.setValueAtTime(freq * 2, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.20, audioCtx.currentTime + 0.03);
+      overtoneGain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+
+      osc.connect(gain);
+      overtone.connect(overtoneGain);
+      gain.connect(audioCtx.destination);
+      overtoneGain.connect(audioCtx.destination);
+      osc.start();
+      overtone.start();
+      sustainedTone = { osc, overtone, gain, overtoneGain };
+    }
+
+    function stopSustainedTone() {
+      if (!sustainedTone || !audioCtx) return;
+      const endTime = audioCtx.currentTime + 0.04;
+      sustainedTone.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+      sustainedTone.overtoneGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      sustainedTone.gain.gain.setValueAtTime(Math.max(sustainedTone.gain.gain.value, 0.0001), audioCtx.currentTime);
+      sustainedTone.overtoneGain.gain.setValueAtTime(Math.max(sustainedTone.overtoneGain.gain.value, 0.0001), audioCtx.currentTime);
+      sustainedTone.gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+      sustainedTone.overtoneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+      sustainedTone.osc.stop(endTime + 0.01);
+      sustainedTone.overtone.stop(endTime + 0.01);
+      sustainedTone = null;
+    }
+
+    function addNoteAtBeat(pitch, typeId, startBeat = getCurrentBeatPosition()) {
+      const type = NOTE_TYPE_MAP[typeId];
+      const check = canPlaceNote(typeId, startBeat);
+      if (!check.ok) {
+        setActivePitch(pitch);
+        updateStatus(check.reason);
+        return;
+      }
+
+      const note = {
+        id: noteIdCounter++,
+        pitch,
+        type: type.id,
+        beats: type.beats,
+        startBeat: roundBeat(startBeat)
+      };
+      updateNoteTimingMetadata(note);
+      notesPlaced.push(note);
+      setActivePitch(pitch);
+      playTone(pitch, Math.min(0.45, Math.max(0.16, type.beats * 0.22)));
+      drawStaticStaff();
+      updateStatus(note.crossesBarline ? `${type.label} added across measures ${note.measure}-${note.endMeasure}` : `${type.label} added at beat ${roundBeat(startBeat + 1).toFixed(2)}`);
+    }
+
+    function addNote(pitch, typeId) {
+      addNoteAtBeat(pitch, typeId, getCurrentBeatPosition());
+    }
+
+    function deleteNote(noteId) {
+      const index = notesPlaced.findIndex(note => note.id === noteId);
+      if (index === -1) return;
+      const [removed] = notesPlaced.splice(index, 1);
+      closeContextMenu();
+      drawStaticStaff();
+      updateStatus(`Deleted ${removed.pitch}`);
+    }
+
+    function openAddContextMenu(x, y, pitch, startBeat = getCurrentBeatPosition()) {
+      contextMenu.innerHTML = '';
+      NOTE_TYPES.forEach((type) => {
+        const btn = document.createElement('button');
+        const check = canPlaceNote(type.id, startBeat);
+        btn.textContent = `${type.label} (${type.beats} beat${type.beats === 1 ? '' : 's'})`;
+        btn.disabled = !check.ok;
+        btn.title = check.reason;
+        btn.addEventListener('click', () => {
+          addNoteAtBeat(pitch, type.id, startBeat);
+          closeContextMenu();
+        });
+        contextMenu.appendChild(btn);
+      });
+      showContextMenu(x, y);
+      updateStatus('Choose a note length');
+    }
+
+    function openNoteContextMenu(x, y, noteId) {
+      const note = notesPlaced.find(n => n.id === noteId);
+      if (!note) return;
+      contextMenu.innerHTML = '';
+
+      const label = document.createElement('button');
+      label.textContent = `${note.pitch} ${NOTE_TYPE_MAP[note.type].label}`;
+      label.disabled = true;
+      contextMenu.appendChild(label);
+
+      const del = document.createElement('button');
+      del.className = 'delete-option';
+      del.textContent = 'Delete Note';
+      del.addEventListener('click', () => deleteNote(noteId));
+      contextMenu.appendChild(del);
+
+      showContextMenu(x, y);
+      updateStatus('Note options');
+    }
+
+    function showContextMenu(x, y) {
+      contextMenu.style.left = `${x}px`;
+      contextMenu.style.top = `${y}px`;
+      contextMenu.style.display = 'block';
+    }
+
+    function closeContextMenu() {
+      contextMenu.style.display = 'none';
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target)) closeContextMenu();
+    });
+
+    window.addEventListener('resize', closeContextMenu);
+    window.addEventListener('scroll', closeContextMenu);
+
+    svg.addEventListener('pointermove', (e) => {
+      if (!draggingNoteId) return;
+      e.preventDefault();
+      hasDragged = true;
+      const note = notesPlaced.find(n => n.id === draggingNoteId);
+      if (!note) return;
+      const pt = getSvgPoint(e);
+      const newPitch = pitchFromY(pt.y);
+      if (newPitch !== note.pitch) {
+        note.pitch = newPitch;
+        activePitch = newPitch;
+        drawStaticStaff();
+        updateStatus(`Moved to ${newPitch}`);
+      }
+    });
+
+    svg.addEventListener('pointerup', (e) => {
+      if (!draggingNoteId) return;
+      const note = notesPlaced.find(n => n.id === draggingNoteId);
+      if (note && hasDragged) {
+        playTone(note.pitch, 0.35);
+        updateStatus(`Changed note to ${note.pitch}`);
+      }
+      draggingNoteId = null;
+      hasDragged = false;
+      drawStaticStaff();
+    });
+
+    svg.addEventListener('pointercancel', () => {
+      draggingNoteId = null;
+      hasDragged = false;
+      drawStaticStaff();
+    });
+
+    function stopPlayback() {
+      playbackTimeouts.forEach(id => clearTimeout(id));
+      playbackTimeouts = [];
+      isPlaying = false;
+      playBtn.textContent = 'Play Staff';
+      playBtn.classList.remove('playing');
+      drawStaticStaff();
+      updateStatus(notesPlaced.length ? 'Playback stopped' : 'Ready');
+    }
+
+    function playStaff() {
+      if (!notesPlaced.length) return;
+      if (isPlaying) {
+        stopPlayback();
+        return;
+      }
+
+      ensureAudio();
+      isPlaying = true;
+      playBtn.textContent = 'Stop Playback';
+      playBtn.classList.add('playing');
+      updateStatus(`Playing at ${bpmSlider.value} BPM`);
+
+      const secondsPerBeat = 60 / Number(bpmSlider.value);
+      notesPlaced.sort((a, b) => a.startBeat - b.startBeat).forEach((note) => {
+        playTone(note.pitch, Math.max(0.12, note.beats * secondsPerBeat * 0.92), note.startBeat * secondsPerBeat);
+        playbackTimeouts.push(setTimeout(() => drawPlayhead(note.startBeat), note.startBeat * secondsPerBeat * 1000));
+      });
+
+      const endBeat = getCurrentBeatPosition();
+      playbackTimeouts.push(setTimeout(() => {
+        drawPlayhead(endBeat);
+        isPlaying = false;
+        playBtn.textContent = 'Play Staff';
+        playBtn.classList.remove('playing');
+        updateStatus('Playback finished');
+      }, endBeat * secondsPerBeat * 1000 + 120));
+    }
+
+    function buildKeyboard() {
+      keyboardEl.innerHTML = '';
+      const startMidi = midiFromPitch('C2');
+      const endMidi = midiFromPitch('C6');
+      const whiteKeyWidth = 48;
+      const blackKeyWidth = 30;
+      const whitePositions = [];
+      let whiteIndex = 0;
+
+      for (let midi = startMidi; midi <= endMidi; midi++) {
+        const pitch = pitchFromMidi(midi);
+        if (!pitch.includes('#')) {
+          const key = document.createElement('div');
+          key.className = 'white-key';
+          key.style.left = `${whiteIndex * whiteKeyWidth}px`;
+          key.setAttribute('data-pitch', pitch);
+          key.innerHTML = `<span>${pitch}</span>`;
+          attachKeyEvents(key, pitch);
+          keyboardEl.appendChild(key);
+          whitePositions.push({ pitch, left: whiteIndex * whiteKeyWidth });
+          whiteIndex++;
+        }
+      }
+
+      for (let midi = startMidi; midi <= endMidi; midi++) {
+        const pitch = pitchFromMidi(midi);
+        if (pitch.includes('#')) {
+          const prevNatural = pitchFromMidi(midi - 1);
+          const prev = whitePositions.find(w => w.pitch === prevNatural);
+          if (!prev) continue;
+          const key = document.createElement('div');
+          key.className = 'black-key';
+          key.style.left = `${prev.left + whiteKeyWidth - blackKeyWidth / 2}px`;
+          key.setAttribute('data-pitch', pitch);
+          key.innerHTML = `<span>${pitch}</span>`;
+          attachKeyEvents(key, pitch);
+          keyboardEl.appendChild(key);
+        }
+      }
+
+      keyboardEl.style.width = `${whiteIndex * whiteKeyWidth}px`;
+    }
+
+    function attachKeyEvents(el, pitch) {
+      el.addEventListener('mouseenter', () => setHoverPitch(pitch));
+      el.addEventListener('mouseleave', () => setHoverPitch(null));
+
+      el.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        closeContextMenu();
+        keyboardPointerId = e.pointerId;
+        keyboardPressedPitch = pitch;
+        suppressNextClick = true;
+        el.setPointerCapture(e.pointerId);
+        setActivePitch(pitch);
+        startSustainedTone(pitch);
+        updateStatus(`Holding ${pitch}`);
+      });
+
+      el.addEventListener('pointerup', (e) => {
+        if (keyboardPointerId !== e.pointerId || keyboardPressedPitch !== pitch) return;
+        e.preventDefault();
+        stopSustainedTone();
+        addNote(pitch, 'quarter');
+        keyboardPointerId = null;
+        keyboardPressedPitch = null;
+      });
+
+      el.addEventListener('pointercancel', () => {
+        stopSustainedTone();
+        keyboardPointerId = null;
+        keyboardPressedPitch = null;
+      });
+
+      el.addEventListener('click', (e) => {
+        if (suppressNextClick) {
+          e.preventDefault();
+          suppressNextClick = false;
+        }
+      });
+
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        stopSustainedTone();
+        keyboardPointerId = null;
+        keyboardPressedPitch = null;
+        openAddContextMenu(e.clientX, e.clientY, pitch, getCurrentBeatPosition());
+      });
+    }
+
+
+
+    function buildSaveData() {
+      return {
+        app: SAVE_FILE_APP,
+        version: SAVE_FILE_VERSION,
+        savedAt: new Date().toISOString(),
+        bpm: Number(bpmSlider.value),
+        staff: {
+          measures: STAFF.measures,
+          beatsPerMeasure: STAFF.beatsPerMeasure,
+          totalBeats: STAFF.totalBeats
+        },
+        notes: notesPlaced
+          .slice()
+          .sort((a, b) => a.startBeat - b.startBeat)
+          .map(note => ({
+            pitch: note.pitch,
+            type: note.type,
+            beats: note.beats,
+            startBeat: note.startBeat
+          }))
+      };
+    }
+
+    function downloadSaveFile() {
+      const saveData = buildSaveData();
+      const json = JSON.stringify(saveData, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStamp = new Date().toISOString().slice(0, 10);
+
+      link.href = url;
+      link.download = `choir-staff-save-${dateStamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      updateStatus('Save file downloaded');
+    }
+
+    function validateSaveData(data) {
+      if (!data || typeof data !== 'object') throw new Error('Save file is not valid JSON data.');
+      if (data.app !== SAVE_FILE_APP) throw new Error('This does not look like a Choir Practice Staff save file.');
+      if (!Array.isArray(data.notes)) throw new Error('Save file is missing notes.');
+
+      data.notes.forEach((note, index) => {
+        if (!note || typeof note !== 'object') throw new Error(`Note ${index + 1} is invalid.`);
+        if (typeof note.pitch !== 'string' || midiFromPitch(note.pitch) == null) throw new Error(`Note ${index + 1} has an invalid pitch.`);
+        if (!NOTE_TYPE_MAP[note.type]) throw new Error(`Note ${index + 1} has an invalid note type.`);
+        if (typeof note.startBeat !== 'number' || note.startBeat < 0 || note.startBeat >= STAFF.totalBeats) throw new Error(`Note ${index + 1} has an invalid start beat.`);
+      });
+    }
+
+    function loadSaveData(data) {
+      validateSaveData(data);
+      stopPlayback();
+      notesPlaced.length = 0;
+      noteIdCounter = 1;
+
+      if (typeof data.bpm === 'number') {
+        const min = Number(bpmSlider.min);
+        const max = Number(bpmSlider.max);
+        bpmSlider.value = Math.max(min, Math.min(max, Math.round(data.bpm)));
+      }
+
+      data.notes
+        .slice()
+        .sort((a, b) => a.startBeat - b.startBeat)
+        .forEach(savedNote => {
+          const type = NOTE_TYPE_MAP[savedNote.type];
+          const note = {
+            id: noteIdCounter++,
+            pitch: savedNote.pitch,
+            type: type.id,
+            beats: type.beats,
+            startBeat: roundBeat(savedNote.startBeat)
+          };
+          const check = canPlaceNote(note.type, note.startBeat);
+          if (!check.ok) throw new Error(`Could not load ${note.pitch} at beat ${note.startBeat + 1}: ${check.reason}.`);
+          updateNoteTimingMetadata(note);
+          notesPlaced.push(note);
+        });
+
+      hoverPitch = null;
+      activePitch = null;
+      draggingNoteId = null;
+      closeContextMenu();
+      drawStaticStaff();
+      buildKeyboard();
+      refreshHighlights();
+      updateStatus(`Loaded ${notesPlaced.length} note${notesPlaced.length === 1 ? '' : 's'} from save file`);
+    }
+
+    function uploadSaveFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          loadSaveData(data);
+        } catch (error) {
+          updateStatus(error.message || 'Could not load save file');
+          alert(error.message || 'Could not load save file.');
+        } finally {
+          saveFileInput.value = '';
+        }
+      };
+
+      reader.onerror = () => {
+        updateStatus('Could not read save file');
+        alert('Could not read save file.');
+        saveFileInput.value = '';
+      };
+
+      reader.readAsText(file);
+    }
+
+    resetBtn.addEventListener('click', () => {
+      stopPlayback();
+      notesPlaced.length = 0;
+      hoverPitch = null;
+      activePitch = null;
+      draggingNoteId = null;
+      closeContextMenu();
+      drawStaticStaff();
+      refreshHighlights();
+      updateStatus('Staff reset');
+    });
+
+    downloadSaveBtn.addEventListener('click', downloadSaveFile);
+
+    uploadSaveBtn.addEventListener('click', () => {
+      if (notesPlaced.length > 0) {
+        updateStatus('Reset staff to use upload save file');
+        return;
+      }
+      saveFileInput.click();
+    });
+
+    saveFileInput.addEventListener('change', (e) => {
+      if (notesPlaced.length > 0) {
+        updateStatus('Reset staff to use upload save file');
+        saveFileInput.value = '';
+        return;
+      }
+      uploadSaveFile(e.target.files[0]);
+    });
+
+    playBtn.addEventListener('click', playStaff);
+
+    bpmSlider.addEventListener('input', () => {
+      bpmValueEl.textContent = bpmSlider.value;
+      if (!isPlaying) updateStatus(`Playback speed set to ${bpmSlider.value} BPM`);
+    });
+
+    drawStaticStaff();
+    buildKeyboard();
+    updateStatus('Ready');
+  </script>
+</body>
+</html>
